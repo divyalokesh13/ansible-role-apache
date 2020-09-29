@@ -1,0 +1,93 @@
+---
+- name: change root password
+  user: name=root 
+        password={{ root_password }}
+
+- name: adding a deploy user account
+  user:
+       name={{ deploy_user_name }}
+       password={{ deploy_user_password }}
+       generate_ssh_key=yes
+
+
+- name: Deploy SSH Key
+  authorized_key: user={{ deploy_user_name }}
+                  state=present
+                  manage_dir=yes
+                  key= "{{ lookup('file', '/root/.ssh/id_rsa.pub') }}"
+
+- name: adding user1 to the suders
+  copy:
+       dest: "/etc/sudoers.d/user1"
+       content: "user1 ALL=(ALL) NOPASSWD: ALL"
+
+- name: update the system
+  yum:
+      name: "*"
+      state: latest
+
+- name: Add epel-release repo
+  yum:
+      name: epel-release
+      state: present
+
+- name: Install ufw
+  yum: name=ufw
+
+- name: Set ufw policy
+  ufw: state=enabled direction=incoming policy=deny
+
+- name: Allow ssh through firewall
+  ufw: proto=tcp port={{ssh_port }} rule=allow
+
+- name: install logwatch
+  yum: name=logwatch
+
+- name: Ensure postfix is installed.
+  yum:
+      name: postfix
+      state: present
+
+- name: Ensure deconf  is installed.
+  yum:
+      name: debconf
+      state: present
+
+
+- name: Set up Postfix to relay mail
+  debconf: name=postfix
+           question='postfix/mailname'
+           value={{LOGWATCH_EMAIL }}
+           vtype='string'
+
+- name: Email log summary daily
+  lineinfile: dest=/etc/cron.daily/00logwatch
+              regexp="^/usr/sbin/logwatch"
+              line="/usr/sbin/logwatch --output mail --mailto {{ LOGWATCH_EMAIL }} --detail high"
+              state=present create=yes
+
+- name: Change ssh port
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp="^Port\s"
+              line= "Port {{ ssh_port }}"
+              state=present
+  notify: Restart ssh
+
+- name: Disable Password Authentication
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp='^PasswordAuthentication'
+              line="PasswordAuthentication no"
+              state=present
+              backup=yes
+  notify:
+    - restart ssh
+
+- name: Disable Root Login
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp='^PermitRootLogin'
+              line="PermitRootLogin no"
+              state=present
+              backup=yes
+  notify:
+    - restart ssh
+

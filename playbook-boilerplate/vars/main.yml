@@ -1,0 +1,7 @@
+---
+root_password: 'root'
+deploy_user_name: 'deploy'
+deploy_user_password: 'deploy'
+ssh_port: 22
+LOGWATCH_EMAIL: divyalokesh19@gmail.com
+
